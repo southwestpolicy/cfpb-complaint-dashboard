@@ -288,16 +288,6 @@
 
 .sppi-cfpb .sppi-state.is-empty { fill: var(--sppi-surface-2); }
 
-.sppi-cfpb .sppi-state-label {
-	fill: currentColor;
-	font-size: 12px;
-	font-weight: 600;
-	pointer-events: none;
-	paint-order: stroke;
-	stroke: var(--sppi-surface);
-	stroke-width: 2.5px;
-}
-
 .sppi-cfpb .sppi-scale {
 	display: flex;
 	align-items: center;

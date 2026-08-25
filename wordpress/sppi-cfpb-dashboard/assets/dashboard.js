@@ -39,10 +39,6 @@
 		WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming'
 	};
 
-	// States too small to carry an inline label at this scale; they remain
-	// hoverable and keyboard-reachable, they just are not lettered.
-	var NO_LABEL = { DC: 1, RI: 1, DE: 1, CT: 1, NJ: 1, MA: 1, NH: 1, VT: 1, MD: 1 };
-
 	/* ------------------------------------------------------------------ */
 	/* helpers                                                             */
 	/* ------------------------------------------------------------------ */
@@ -618,14 +614,12 @@
 					svg.appendChild(p);
 				});
 
-				Object.keys(geo.labels || {}).forEach(function (abbr) {
-					if (NO_LABEL[abbr]) return;
-					var xy = geo.labels[abbr];
-					svg.appendChild(svgEl('text', {
-						x: xy[0], y: xy[1] + 3, class: 'sppi-state-label',
-						'text-anchor': 'middle'
-					}, abbr));
-				});
+				// No abbreviations painted on the states. At the width this map
+				// is drawn they came out around 9px, too small to read but big
+				// enough to break up the shading they sat on, and they crowded
+				// the north-east badly enough that nine states had to be
+				// suppressed by hand. Identification comes from hovering or
+				// tabbing to a state, and from the ranked table below.
 
 				holder.appendChild(svg);
 				tip = el('div', { class: 'sppi-tip', role: 'status', 'aria-live': 'polite' });
