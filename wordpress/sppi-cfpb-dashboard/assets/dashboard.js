@@ -90,7 +90,48 @@
 	/* chart scaffolding                                                   */
 	/* ------------------------------------------------------------------ */
 
-	var W = 720, H = 300, PAD = { l: 54, r: 18, t: 14, b: 34 };
+	/**
+	 * Chart geometry, in viewBox units.
+	 *
+	 * Roughly 3:1. The dashboard sits in the theme's wide measure, so a chart is
+	 * typically rendered around 1200px across; at the previous 2.4:1 that came
+	 * out 500px tall and pushed the panel below it off the screen.
+	 */
+	var W = 960, H = 340, PAD = { l: 70, r: 22, t: 18, b: 44 };
+
+	/** Rendered size we want chart text to end up at, in real CSS pixels. */
+	var TICK_PX = 12.5;
+
+	/**
+	 * Keep chart text at a constant apparent size.
+	 *
+	 * Text inside an SVG is measured in viewBox units, so it scales with the
+	 * element: a 11-unit label was 8.9px when the chart sat in a 580px column
+	 * and would be 18px in a 1200px one. Neither is what anybody chose. Setting
+	 * font-size on the root <svg> makes every label inherit it in user units, so
+	 * the size only has to be divided by the current scale factor to land at
+	 * TICK_PX on screen at any width.
+	 *
+	 * The upper clamp matters on phones: without it a 360px-wide chart would ask
+	 * for a 33-unit font and the y-axis labels would run into the plot area.
+	 */
+	function fitText(svg) {
+		function apply() {
+			var w = svg.getBoundingClientRect().width;
+			if (!w) return;
+			var units = TICK_PX * W / w;
+			svg.style.fontSize = Math.min(22, Math.max(9, units)).toFixed(2) + 'px';
+		}
+		apply();
+		if (typeof ResizeObserver === 'function') {
+			new ResizeObserver(apply).observe(svg);
+		} else {
+			window.addEventListener('resize', apply);
+		}
+		// The first measurement can happen before the theme's webfonts and
+		// layout have settled; one more pass after load costs nothing.
+		window.addEventListener('load', apply);
+	}
 
 	function frame(title, desc) {
 		var s = svgEl('svg', {
@@ -116,12 +157,41 @@
 		return PAD.l + (n <= 1 ? 0 : span * i / (n - 1));
 	}
 
+	/**
+	 * Gridline values that read as round numbers.
+	 *
+	 * Dividing the axis into four equal parts is arithmetically tidy and
+	 * typographically bad: a 50% axis becomes 0, 12.5, 25, 37.5, 50, and
+	 * "12.5%" is half again as wide as "10%". On a phone that is the difference
+	 * between a label sitting in the gutter and one hanging outside the chart.
+	 * Picking a round step instead keeps every label short.
+	 *
+	 * @param {number} hi Top of the axis.
+	 * @return {number[]} Tick values from 0 to hi inclusive.
+	 */
+	function niceTicks(hi) {
+		var steps = [1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+		var step = hi / 5;
+		for (var i = 0; i < steps.length; i++) {
+			if (hi / steps[i] <= 5) { step = steps[i]; break; }
+		}
+		var out = [];
+		for (var v = 0; v <= hi + step / 1000; v += step) out.push(v);
+		return out;
+	}
+
+	/*
+	 * Labels are offset with `dy` in `em` rather than a fixed number of units,
+	 * because fitText() changes the font size after these are drawn. An em
+	 * offset rescales with the text; a unit offset would leave the labels
+	 * stranded above or below their gridline at some widths.
+	 */
 	function gridY(svg, ticks, lo, hi) {
 		ticks.forEach(function (t) {
 			var y = yScale(t.v, lo, hi);
 			svg.appendChild(svgEl('line', { x1: PAD.l, y1: y, x2: W - PAD.r, y2: y, class: 'sppi-grid' }));
 			svg.appendChild(svgEl('text', {
-				x: PAD.l - 8, y: y + 4, class: 'sppi-tick', 'text-anchor': 'end'
+				x: PAD.l - 10, y: y, dy: '0.32em', class: 'sppi-tick', 'text-anchor': 'end'
 			}, t.label));
 		});
 	}
@@ -130,7 +200,7 @@
 		labels.forEach(function (lab, i) {
 			if (i % every !== 0 && i !== labels.length - 1) return;
 			svg.appendChild(svgEl('text', {
-				x: xScale(i, labels.length), y: H - PAD.b + 18,
+				x: xScale(i, labels.length), y: H - PAD.b, dy: '1.5em',
 				class: 'sppi-tick', 'text-anchor': 'middle'
 			}, lab));
 		});
@@ -155,6 +225,7 @@
 	function figureWrap(svg) {
 		var f = el('figure', { class: 'sppi-figure' });
 		f.appendChild(svg);
+		fitText(svg);
 		return f;
 	}
 
@@ -272,10 +343,19 @@
 		return d;
 	}
 
+	/**
+	 * Heading level for panel titles.
+	 *
+	 * The dashboard normally sits under the page title, so h2 is the level that
+	 * continues the document outline instead of skipping one. Overridable via
+	 * the shortcode when the dashboard is nested under a heading of its own.
+	 */
+	var HEADING = 'h2';
+
 	function section(title, blurb) {
 		var w = el('section', { class: 'sppi-panel' });
-		w.appendChild(el('h3', { class: 'sppi-panel-title' }, title));
-		if (blurb) w.appendChild(el('p', { class: 'sppi-panel-note' }, blurb));
+		w.appendChild(el(HEADING, { class: 'sppi-panel-title sppi-prose' }, title));
+		if (blurb) w.appendChild(el('p', { class: 'sppi-panel-note sppi-prose' }, blurb));
 		return w;
 	}
 
@@ -293,8 +373,8 @@
 			[fmt(h.complaints), 'complaints analysed, 2011 to ' + String(m.data_through).slice(0, 4)]
 		].forEach(function (s) {
 			var c = el('div', { class: 'sppi-stat' });
-			c.appendChild(el('b', {}, s[0]));
-			c.appendChild(el('span', {}, s[1]));
+			c.appendChild(el('b', { class: 'sppi-stat-value' }, s[0]));
+			c.appendChild(el('span', { class: 'sppi-stat-label' }, s[1]));
 			w.appendChild(c);
 		});
 		return w;
@@ -312,8 +392,9 @@
 		var svg = frame('Templated share of narratives by month',
 			'Climbs steadily from under one percent in 2016 to about ' +
 			Math.round(vals[vals.length - 1]) + ' percent by ' + labels[labels.length - 1] + '.');
-		var ticks = [];
-		for (var i = 0; i <= 4; i++) ticks.push({ v: hi * i / 4, label: (hi * i / 4) + '%' });
+		var ticks = niceTicks(hi).map(function (v) {
+			return { v: v, label: (Math.round(v * 10) / 10) + '%' };
+		});
 		gridY(svg, ticks, 0, hi);
 		xLabels(svg, labels.map(function (m) { return m.slice(0, 4); }), 12);
 		polyline(svg, vals, 0, hi, 'sppi-s1');
@@ -421,7 +502,9 @@
 		});
 		w.appendChild(toggle);
 
-		var holder = el('figure', { class: 'sppi-figure' });
+		// The map keeps its own width cap: its geometry is 960x600, so at the
+		// full wide measure it would stand over 700px tall.
+		var holder = el('figure', { class: 'sppi-figure sppi-figure--map' });
 		holder.appendChild(el('p', { class: 'sppi-panel-note' }, 'Loading map…'));
 		w.appendChild(holder);
 
@@ -559,15 +642,10 @@
 		// The table is always rendered: it is the accessible equivalent of the
 		// map and the fallback if the geometry fails to load.
 		var top = d.states.slice(0, 12);
-		var max = top[0].per_100k || 1;
-		w.appendChild(el('p', { class: 'sppi-panel-note' }, 'Highest-filing states:'));
-		w.appendChild(barTable(top, [
+		w.appendChild(el('p', { class: 'sppi-panel-note sppi-prose' }, 'Highest-filing states:'));
+		w.appendChild(dataTable(top, [
 			{ label: 'State', get: function (r) { return STATE_NAMES[r.state] || r.state; } },
-			{
-				label: 'Per 100k', num: true,
-				get: function (r) { return fmt(Math.round(r.per_100k)); },
-				bar: function (r) { return 100 * r.per_100k / max; }
-			},
+			{ label: 'Per 100k', num: true, get: function (r) { return fmt(Math.round(r.per_100k)); } },
 			{ label: 'Complaints', num: true, get: function (r) { return fmt(r.complaints); } },
 			{ label: 'Templated', num: true, get: function (r) { return pct(r.templated_pct); } }
 		]));
@@ -576,7 +654,16 @@
 
 	/* ---- tables ------------------------------------------------------- */
 
-	function barTable(rows, cols) {
+	/**
+	 * A plain data table.
+	 *
+	 * Earlier versions drew a proportional bar behind the figures in a numeric
+	 * column. It duplicated information the number already carried, competed
+	 * with the charts above it for attention, and made the cell contents shift
+	 * as the column resized. The number on its own is easier to read and to
+	 * copy out.
+	 */
+	function dataTable(rows, cols) {
 		var wrap = el('div', { class: 'sppi-tablewrap' });
 		var t = el('table', { class: 'sppi-table' });
 		var thead = el('thead'), tr = el('tr');
@@ -590,16 +677,7 @@
 			var row = el('tr');
 			cols.forEach(function (c) {
 				var td = el('td', { class: c.num ? 'sppi-num' : '' });
-				if (c.bar) {
-					var bw = el('div', { class: 'sppi-barwrap' });
-					var bar = el('i', { class: 'sppi-bar' });
-					bar.style.width = Math.max(1, c.bar(r)) + '%';
-					bw.appendChild(bar);
-					bw.appendChild(el('span', {}, c.get(r)));
-					td.appendChild(bw);
-				} else {
-					td.textContent = c.get(r);
-				}
+				td.textContent = c.get(r);
 				row.appendChild(td);
 			});
 			tb.appendChild(row);
@@ -615,14 +693,9 @@
 			'By complaints received over the last ' + d.meta.window_months +
 			' complete months. Names are grouped across corporate variants.');
 		var top = d.companies.slice(0, 12);
-		var max = top[0].complaints || 1;
-		w.appendChild(barTable(top, [
+		w.appendChild(dataTable(top, [
 			{ label: 'Company', get: function (r) { return r.company; } },
-			{
-				label: 'Complaints', num: true,
-				get: function (r) { return fmt(r.complaints); },
-				bar: function (r) { return 100 * r.complaints / max; }
-			},
+			{ label: 'Complaints', num: true, get: function (r) { return fmt(r.complaints); } },
 			{ label: 'With narrative', num: true, get: function (r) { return fmt(r.narratives); } }
 		]));
 		return w;
@@ -640,18 +713,10 @@
 				r.organic && r.organic.relief_pct !== null;
 		}).slice(0, 6);
 		if (!rows.length) return null;
-		w.appendChild(barTable(rows, [
+		w.appendChild(dataTable(rows, [
 			{ label: 'Segment', get: function (r) { return r.label; } },
-			{
-				label: 'Templated', num: true,
-				get: function (r) { return pct(r.templated.relief_pct); },
-				bar: function (r) { return r.templated.relief_pct; }
-			},
-			{
-				label: 'Organic', num: true,
-				get: function (r) { return pct(r.organic.relief_pct); },
-				bar: function (r) { return r.organic.relief_pct; }
-			},
+			{ label: 'Templated', num: true, get: function (r) { return pct(r.templated.relief_pct); } },
+			{ label: 'Organic', num: true, get: function (r) { return pct(r.organic.relief_pct); } },
 			{ label: 'Closed', num: true, get: function (r) { return fmt(r.templated.closed + r.organic.closed); } }
 		]));
 		return w;
@@ -659,13 +724,13 @@
 
 	function footer(d) {
 		var f = el('div', { class: 'sppi-foot' });
-		f.appendChild(el('p', {},
+		f.appendChild(el('p', { class: 'sppi-prose' },
 			'Data through ' + d.meta.data_through + '. Source: ' + d.meta.source +
 			'. A complaint counts as templated when its narrative, after normalising case, ' +
 			'punctuation and the Bureau’s redaction markers, is identical to at least ' +
 			(d.meta.template_threshold - 1) + ' others. Templating describes who drafted a ' +
 			'complaint, not whether the underlying grievance is valid.'));
-		f.appendChild(el('p', {}, 'Analysis: ' + d.meta.publisher +
+		f.appendChild(el('p', { class: 'sppi-prose' }, 'Analysis: ' + d.meta.publisher +
 			'. Payload generated ' + d.meta.generated + '.'));
 		return f;
 	}
@@ -704,6 +769,11 @@
 		var cfg = window.SPPI_CFPB || {};
 		var wrapper = mounts[0].parentNode;
 		var mapUrl = cfg.mapUrl || wrapper.getAttribute('data-map') || DEFAULT_MAP;
+
+		// Panel titles have to slot into the outline of whatever page hosts
+		// them, so the level is the host's decision, not this file's.
+		var lvl = String(cfg.heading || wrapper.getAttribute('data-heading') || '').toLowerCase();
+		if (/^h[1-6]$/.test(lvl)) HEADING = lvl;
 
 		if (cfg.data) {
 			Array.prototype.forEach.call(mounts, function (m) {

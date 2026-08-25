@@ -47,3 +47,9 @@ desktop.ini
 *.log
 _mapcheck.svg
 _map*.png
+
+# --- Plugin package -------------------------------------------------------
+# Packaged by the Pages workflow from wordpress/sppi-cfpb-dashboard/ on every
+# deploy. Committing the zip would mean two sources of truth for the plugin,
+# and a stale one is worse than none: it is what sites would install.
+dashboard/public/plugin/

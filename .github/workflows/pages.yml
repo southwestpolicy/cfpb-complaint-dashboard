@@ -13,7 +13,7 @@ on:
     branches: [main]
     paths:
       - 'dashboard/public/**'
-      - 'wordpress/sppi-cfpb-dashboard/assets/**'
+      - 'wordpress/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -48,6 +48,12 @@ jobs:
           cp wordpress/sppi-cfpb-dashboard/assets/dashboard.css   dashboard/public/assets/
           cp wordpress/sppi-cfpb-dashboard/assets/dashboard.js    dashboard/public/assets/
           cp wordpress/sppi-cfpb-dashboard/assets/us-states.json  dashboard/public/assets/
+
+      - name: Package the plugin and write its update manifest
+        # Publishing the package alongside the data is what lets an installed
+        # copy of the plugin see that a newer version exists. The version comes
+        # from the plugin header, so a release is a header bump and a push.
+        run: python dashboard/build_plugin_release.py
 
       - name: Verify the payload before publishing
         run: python dashboard/check_payload.py dashboard/public/data/dashboard.json

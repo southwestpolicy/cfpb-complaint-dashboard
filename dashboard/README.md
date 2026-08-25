@@ -89,13 +89,65 @@ Place the dashboard on any page with:
 [sppi_cfpb_dashboard]
 ```
 
-Or show selected panels only:
+### Shortcode attributes
+
+| Attribute | Default | Does |
+|---|---|---|
+| `panels` | all six | Which panels to show, in order: `headline`, `trend`, `volume`, `states`, `companies`, `relief`. |
+| `align` | `wide` | `wide` gives charts, the map and tables the theme's wide measure; `full` spans the viewport; `none` keeps everything in the text column. Prose stays at the site's reading width whichever is chosen. |
+| `heading` | `h2` | Heading level for panel titles. `h2` continues the outline under a page title; use `h3` if the dashboard sits under a heading of its own, or if your theme's `h2` is larger than you want repeated five times. |
 
 ```
-[sppi_cfpb_dashboard panels="headline,trend"]
+[sppi_cfpb_dashboard panels="headline,trend" align="wide" heading="h3"]
 ```
 
-Panels: `headline`, `trend`, `volume`, `states`, `companies`, `relief`.
+## Updating the plugin
+
+The plugin is not on wordpress.org, so nothing would ordinarily tell WordPress
+that a newer version exists. It uses the mechanism core added in 5.8 for exactly
+this case: the `Update URI` header in the plugin file names a host, WordPress
+hands that host its own `update_plugins_{host}` filter, and whatever the filter
+returns is treated as the authoritative update record. The notice on the Plugins
+screen, the update count in the admin menu, one-click update and auto-updates
+are then all core's own — the plugin contains no code that unpacks or installs
+anything.
+
+What the plugin asks that host for is one small JSON file:
+
+```
+https://<org>.github.io/<repo>/plugin/update.json
+```
+
+`dashboard/build_plugin_release.py` writes it, next to a zip of the plugin, and
+the Pages workflow runs that script on every deploy. So **releasing a new
+version is:**
+
+1. Edit the plugin. Change **both** `Version:` in the file header and the
+   `SPPI_CFPB_VERSION` constant below it — the build refuses to package a
+   mismatch, because WordPress reads one and the plugin's own code reads the
+   other, and a disagreement is invisible until an update half-applies.
+2. Add a line to `wordpress/CHANGELOG.md`; it becomes the changelog in the
+   "View details" modal.
+3. Push to `main`. `pages.yml` packages the plugin, writes the manifest and
+   publishes both.
+
+Every site running the plugin then offers the update the next time WordPress
+checks, which is roughly twice a day. To see it immediately, go to
+**Settings → CFPB Dashboard** and press **Check for updates now**, then update
+from the Plugins screen as normal.
+
+Two safeguards worth knowing about. The package has to be served from the same
+host as the manifest, so anything able to tamper with the JSON still cannot
+point WordPress at an arbitrary zip. And the plugin only ever offers a move
+forwards: publishing a lower version number does not trigger a downgrade, so a
+bad release is rolled back by publishing a *higher* version containing the older
+code, not by reverting the number.
+
+To check what would be packaged without writing anything:
+
+```bash
+python dashboard/build_plugin_release.py --check
+```
 
 ## Running
 
@@ -141,6 +193,30 @@ via `color-mix(... currentColor ...)`, so a dark theme works with no dark-mode
 rules at all and a theme with warm or cool ink tints the whole component to
 match. Block themes additionally supply `--wp--preset--color--primary`, which
 becomes the accent on the headline figures.
+
+Type is inherited rather than approximated. The stylesheet sets no font-family
+and no font-size on anything that is a paragraph or a heading: a `<p>` in the
+dashboard is styled by your theme's paragraph rule and a panel title by its
+heading rule, exactly as if they had been typed into the editor. The only text
+the plugin sizes is chrome with no editorial equivalent — axis labels, the
+legend, the map key, tooltips and the caption under a headline figure.
+
+**Width comes from the theme's own vocabulary.** The wrapper carries
+`alignwide` (or `alignfull`, or neither) rather than a hard-coded pixel width,
+so charts, the map and tables get whatever wide measure the active theme
+defines — 120rem in Twenty Twenty, something else elsewhere — while prose stays
+at `--sppi-measure`, the site's reading width. Nothing breaks out of the content
+column with negative margins. If your theme's content measure is not 58rem:
+
+```css
+.sppi-cfpb { --sppi-measure: 46rem; --sppi-map-max: 70rem; }
+```
+
+**Chart text is sized against the rendered width, not the viewBox.** Text inside
+an SVG scales with the element, so a fixed label size means one thing in a
+580px column and another in a 1200px one. The renderer measures the drawn width
+and sets a font size that lands at roughly 12.5px on screen either way, and
+re-does it through a `ResizeObserver` when the column changes.
 
 The one thing *not* inherited is the data-series colours. A theme palette is
 chosen for branding, not for keeping three lines on a chart distinguishable, and

@@ -1,22 +1,32 @@
 /**
  * SPPI CFPB dashboard styles.
  *
- * INHERITANCE IS THE DEFAULT
- * The dashboard sets no font-family, no text colour and no page background. It
- * inherits all three from whatever theme is active, so it reads as part of the
- * site rather than as an embedded widget.
+ * TYPE IS THE THEME'S JOB, LAYOUT IS OURS
+ * This file sets no font-family, no font-size and no colour on anything that is
+ * a paragraph or a heading. A `<p>` in the dashboard is styled by the theme's
+ * paragraph rule and a panel title by the theme's heading rule, exactly as if
+ * they had been typed into the editor. Earlier versions sized everything in
+ * compounding `em` units, which multiplied down the tree and produced values
+ * like 12.99px and 15.84px that matched nothing else on the page.
+ *
+ * The only text this file sizes is chrome with no editorial equivalent: axis
+ * ticks, the legend, the map scale, tooltips and the caption under a headline
+ * figure. Those are interface labels, not prose.
  *
  * Everything structural is derived from `currentColor` through color-mix:
  * rules, surfaces and muted text are simply the theme's own text colour at low
  * opacity. That means a dark theme works with no dark-mode rules at all, and a
  * theme with a warm or cool ink tints the whole component to match.
  *
- * WordPress theme.json variables are consulted where they exist
- * (--wp--preset--color--*), with the derived value as the fallback, so block
- * themes get their palette and classic themes still look right.
+ * WIDTH
+ * The wrapper carries the theme's own `alignwide` class (see the `align`
+ * shortcode attribute), so charts, the map and tables get the theme's wide
+ * measure while prose stays at `--sppi-measure`, the same reading width as the
+ * rest of the site. Nothing here hard-codes a pixel width or breaks out of the
+ * content column with negative margins.
  *
  * The one thing NOT inherited is the data-series colours. A theme palette is
- * chosen for branding, not for keeping four lines on a chart distinguishable,
+ * chosen for branding, not for keeping three lines on a chart distinguishable,
  * and an accent colour can easily be invisible against its own background.
  * These are fixed mid-tones that clear 3:1 on both white and near-black. To
  * override, redeclare --sppi-s1..s3 in your theme stylesheet.
@@ -38,10 +48,23 @@
 
 	--sppi-accent: var(--wp--preset--color--primary, var(--sppi-s1));
 
-	margin-block: 2em;
+	/* Reading width for prose inside a wide block. Matches Twenty Twenty's
+	   content measure; override if your theme uses a different one. */
+	--sppi-measure: 58rem;
+
+	/* How wide the map may get. Its geometry is 960x600, so at the full wide
+	   measure it would stand over 700px tall and swamp everything around it.
+	   This keeps it clearly larger than a text column without letting height
+	   run away. */
+	--sppi-map-max: 76rem;
+
 	max-width: 100%;
 	line-height: inherit;
 }
+
+/* Supply our own vertical rhythm only when the theme is not already supplying
+   it through an alignment class. */
+.sppi-cfpb:not(.alignwide):not(.alignfull) { margin-block: 2em; }
 
 /* Older browsers without color-mix fall back to a neutral grey scale rather
    than to nothing. */
@@ -59,11 +82,21 @@
 .sppi-cfpb *::before,
 .sppi-cfpb *::after { box-sizing: border-box; }
 
+/* ---- prose -------------------------------------------------------------
+   Paragraphs and headings are left entirely to the theme. All this does is
+   hold them to a readable measure and align them with the left edge of the
+   chart they introduce, rather than centring them under a much wider figure. */
+
+.sppi-cfpb .sppi-prose {
+	max-width: var(--sppi-measure);
+	margin-inline: 0 auto;
+}
+
 /* ---- stat row ---------------------------------------------------------- */
 
 .sppi-cfpb .sppi-stats {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
 	gap: 1px;
 	background: var(--sppi-rule);
 	border: 1px solid var(--sppi-rule);
@@ -75,7 +108,10 @@
 	padding: 1em 1.1em;
 }
 
-.sppi-cfpb .sppi-stat b {
+/* A headline figure is a display number, not body copy, so it is the one place
+   a size is set: relative to the theme's own body size, once, not through a
+   chain of nested ems. */
+.sppi-cfpb .sppi-stat-value {
 	display: block;
 	font-size: 1.9em;
 	line-height: 1.1;
@@ -85,11 +121,12 @@
 	color: var(--sppi-accent);
 }
 
-.sppi-cfpb .sppi-stat span {
+/* Caption under a figure: an interface label, not a paragraph. */
+.sppi-cfpb .sppi-stat-label {
 	display: block;
 	margin-top: .45em;
-	font-size: .8em;
-	line-height: 1.4;
+	font-size: .85em;
+	line-height: 1.45;
 	color: var(--sppi-muted);
 }
 
@@ -97,20 +134,11 @@
 
 .sppi-cfpb .sppi-panel { margin-block: 0 2.6em; }
 
-.sppi-cfpb .sppi-panel-title {
-	/* Inherits the theme's heading font and colour; only rhythm is set here. */
-	margin-block: 0 .25em;
-	font-size: 1.2em;
-	line-height: 1.25;
-}
-
-.sppi-cfpb .sppi-panel-note {
-	margin-block: 0 1em;
-	font-size: .85em;
-	line-height: 1.5;
-	color: var(--sppi-muted);
-	max-width: 62ch;
-}
+/* Title and note carry no type rules at all, so the theme's heading and
+   paragraph styles apply untouched. Only the space between them is ours,
+   because the theme cannot know these two belong together. */
+.sppi-cfpb .sppi-panel-title { margin-block: 0 .35em; }
+.sppi-cfpb .sppi-panel-note { margin-block: 0 1em; }
 
 /* ---- charts ------------------------------------------------------------ */
 
@@ -122,12 +150,18 @@
 	padding: .5em;
 }
 
+.sppi-cfpb .sppi-figure--map { max-width: var(--sppi-map-max); }
+
 .sppi-cfpb .sppi-chart {
 	display: block;
 	width: 100%;
 	height: auto;
 	overflow: visible;
 	touch-action: pan-y;
+	/* Set from script: the size that makes chart text land at a readable number
+	   of real pixels whatever width the SVG is scaled to. The value here is
+	   only a sane starting point before the first measurement. */
+	font-size: 14px;
 }
 
 .sppi-cfpb .sppi-chart:focus-visible {
@@ -138,9 +172,11 @@
 .sppi-cfpb .sppi-grid { stroke: var(--sppi-rule); stroke-width: 1; }
 .sppi-cfpb .sppi-axis { stroke: var(--sppi-rule-strong); stroke-width: 1; }
 
+/* Ticks take the size the script computed on the SVG, so they stay legible at
+   any rendered width instead of shrinking with the viewBox. */
 .sppi-cfpb .sppi-tick {
 	fill: var(--sppi-muted);
-	font-size: 11px;
+	font-size: 1em;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -149,6 +185,7 @@
 	stroke-width: 2;
 	stroke-linejoin: round;
 	stroke-linecap: round;
+	vector-effect: non-scaling-stroke;
 }
 
 .sppi-cfpb .sppi-s1 { stroke: var(--sppi-s1); }
@@ -162,6 +199,7 @@
 	stroke-width: 1;
 	stroke-dasharray: 3 3;
 	pointer-events: none;
+	vector-effect: non-scaling-stroke;
 }
 
 .sppi-cfpb .sppi-dot {
@@ -186,7 +224,7 @@
 	border: 1px solid var(--sppi-rule-strong);
 	border-radius: 3px;
 	padding: .5em .65em;
-	font-size: .78em;
+	font-size: .85em;
 	line-height: 1.45;
 	white-space: nowrap;
 	box-shadow: 0 2px 10px rgba(0, 0, 0, .16);
@@ -222,7 +260,7 @@
 	flex-wrap: wrap;
 	gap: .4em 1.2em;
 	margin-top: .7em;
-	font-size: .82em;
+	font-size: .85em;
 	color: var(--sppi-muted);
 }
 
@@ -242,6 +280,7 @@
 	stroke-width: 1;
 	cursor: pointer;
 	transition: opacity .1s ease;
+	vector-effect: non-scaling-stroke;
 }
 
 .sppi-cfpb .sppi-state:hover,
@@ -251,7 +290,7 @@
 
 .sppi-cfpb .sppi-state-label {
 	fill: currentColor;
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: 600;
 	pointer-events: none;
 	paint-order: stroke;
@@ -264,8 +303,9 @@
 	align-items: center;
 	gap: .5em;
 	margin-top: .6em;
-	font-size: .78em;
+	font-size: .85em;
 	color: var(--sppi-muted);
+	max-width: var(--sppi-map-max);
 }
 
 .sppi-cfpb .sppi-scale-bar {
@@ -288,8 +328,8 @@
 
 .sppi-cfpb .sppi-mapmode button {
 	font: inherit;
-	font-size: .82em;
-	padding: .35em .8em;
+	font-size: .9em;
+	padding: .4em .9em;
 	border: 0;
 	background: transparent;
 	color: inherit;
@@ -299,32 +339,31 @@
 .sppi-cfpb .sppi-mapmode button + button { border-left: 1px solid var(--sppi-rule-strong); }
 .sppi-cfpb .sppi-mapmode button[aria-pressed="true"] { background: var(--sppi-surface-2); font-weight: 700; }
 
-/* ---- tables ------------------------------------------------------------ */
+/* ---- tables ------------------------------------------------------------
+   No font-family and no font-size: a table here is styled by whatever rule the
+   theme already applies to tables in post content, so it matches every other
+   table on the site. Only the grid, padding and numeric alignment are set. */
 
 .sppi-cfpb .sppi-tablewrap { overflow-x: auto; }
 
 .sppi-cfpb table.sppi-table {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: .88em;
 	margin: 0;
 }
 
 .sppi-cfpb table.sppi-table th,
 .sppi-cfpb table.sppi-table td {
 	text-align: left;
-	padding: .5em .7em;
+	padding: .55em .75em;
 	border-bottom: 1px solid var(--sppi-rule);
 	background: none;
 }
 
 .sppi-cfpb table.sppi-table th {
-	font-size: .82em;
-	letter-spacing: .05em;
-	text-transform: uppercase;
-	color: var(--sppi-muted);
 	font-weight: 700;
 	white-space: nowrap;
+	border-bottom: 1px solid var(--sppi-rule-strong);
 }
 
 .sppi-cfpb table.sppi-table tbody tr:last-child td { border-bottom: none; }
@@ -332,44 +371,25 @@
 
 .sppi-cfpb .sppi-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.sppi-cfpb .sppi-barwrap {
-	position: relative;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: .5em;
-	min-width: 7em;
-}
-
-.sppi-cfpb .sppi-bar {
-	position: absolute;
-	right: 0;
-	top: 50%;
-	transform: translateY(-50%);
-	height: 1.15em;
-	background: color-mix(in srgb, var(--sppi-s1) 30%, transparent);
-	border-radius: 2px;
-	pointer-events: none;
-}
-
-.sppi-cfpb .sppi-barwrap span { position: relative; }
-
 /* ---- footer ------------------------------------------------------------ */
 
 .sppi-cfpb .sppi-foot {
 	margin-top: 1.6em;
 	padding-top: 1em;
 	border-top: 1px solid var(--sppi-rule);
-	font-size: .78em;
-	color: var(--sppi-muted);
 }
 
-.sppi-cfpb .sppi-foot p { margin-block: 0 .5em; max-width: 72ch; }
+.sppi-cfpb .sppi-foot p { margin-block: 0 .5em; }
 
 .sppi-cfpb .sppi-cfpb-stale,
-.sppi-cfpb .sppi-cfpb-error { font-size: .85em; color: var(--sppi-flag); margin-top: .8em; }
+.sppi-cfpb .sppi-cfpb-error { color: var(--sppi-flag); margin-top: .8em; }
 
 @media (max-width: 640px) {
-	.sppi-cfpb .sppi-stat b { font-size: 1.5em; }
-	.sppi-cfpb .sppi-tip { font-size: .72em; }
+	.sppi-cfpb .sppi-stats { grid-template-columns: 1fr; }
+
+	/* A 127-month series squeezed into a phone-width column is 112px tall and
+	   unreadable. Hold the charts to a workable width and let the figure scroll
+	   sideways instead, the same way the tables already do. */
+	.sppi-cfpb figure.sppi-figure { overflow-x: auto; }
+	.sppi-cfpb .sppi-chart { min-width: 52rem; }
 }
