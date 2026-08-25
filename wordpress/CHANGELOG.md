@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.1
+
+- Removed the two-letter abbreviations painted on the map. At the width the map
+  is drawn they rendered around 9px — too small to read, but big enough to break
+  up the shading underneath — and the north-east was crowded enough that nine
+  states had to be suppressed by hand. States remain hoverable and
+  keyboard-focusable with their figures in an `aria-label`, and the ranked table
+  below the map is unchanged.
+
+  This shipped as a second 1.1.0 build before it had a version of its own, which
+  meant two different packages claimed the same version and WordPress had no way
+  to tell them apart. Hence 1.1.1.
+
 ## 1.1.0
 
 - Panel titles and notes now take the theme's own heading and paragraph styles.
@@ -16,12 +29,6 @@
   outline under the page title instead of skipping a level.
 - Removed the proportional bars drawn behind figures in table cells. They
   repeated what the number already said and shifted as the column resized.
-- Removed the two-letter abbreviations painted on the map. At the width the map
-  is drawn they rendered around 9px — too small to read, but big enough to break
-  up the shading underneath — and the north-east was crowded enough that nine
-  states had to be suppressed by hand. States remain hoverable and
-  keyboard-focusable with their figures in an `aria-label`, and the ranked table
-  below the map is unchanged.
 - Chart text is now sized against the rendered width, so axis labels stay at a
   readable size instead of shrinking with the viewBox — they were 8.9px in a
   580px column and would have been 18px in a wide one.
