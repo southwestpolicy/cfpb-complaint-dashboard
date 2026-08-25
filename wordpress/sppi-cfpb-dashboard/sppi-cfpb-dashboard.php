@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       SPPI CFPB Complaint Dashboard
  * Description:       Renders the Southwest Public Policy Institute's CFPB complaint-database dashboard from a published JSON feed. Use the [sppi_cfpb_dashboard] shortcode.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Southwest Public Policy Institute
@@ -14,17 +14,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SPPI_CFPB_VERSION', '1.0.0' );
+define( 'SPPI_CFPB_VERSION', '1.0.1' );
 define( 'SPPI_CFPB_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SPPI_CFPB_URL', plugin_dir_url( __FILE__ ) );
 
 /**
  * Default location of the published payload.
  *
- * Replace YOUR-GITHUB-ORG with the account or organisation that owns the
- * repository, or just set the real URL under Settings -> CFPB Dashboard.
+ * A real, working URL rather than a placeholder: a placeholder means a fresh
+ * install fails silently until someone notices the setting, which is exactly
+ * what happened the first time this shipped. Override under
+ * Settings -> CFPB Dashboard if the feed ever moves.
  */
-define( 'SPPI_CFPB_DEFAULT_FEED', 'https://YOUR-GITHUB-ORG.github.io/cfpb-complaint-dashboard/data/dashboard.json' );
+define( 'SPPI_CFPB_DEFAULT_FEED', 'https://southwestpolicy.github.io/cfpb-complaint-dashboard/data/dashboard.json' );
 
 /** How long a successful fetch is cached. The upstream file changes monthly. */
 define( 'SPPI_CFPB_TTL', 12 * HOUR_IN_SECONDS );
@@ -97,9 +99,25 @@ function sppi_cfpb_shortcode( $atts ) {
 
 	$result = sppi_cfpb_get_data();
 	if ( null === $result['data'] ) {
-		return '<div class="sppi-cfpb sppi-cfpb-error"><p>'
+		$out = '<div class="sppi-cfpb sppi-cfpb-error"><p>'
 			. esc_html__( 'The complaint dashboard is temporarily unavailable.', 'sppi-cfpb-dashboard' )
-			. '</p></div>';
+			. '</p>';
+
+		// Administrators get the actual reason and the URL that was tried.
+		// Without this the only symptom is the sentence above, which does not
+		// distinguish a wrong URL from a host that blocks outbound requests.
+		if ( current_user_can( 'manage_options' ) ) {
+			$out .= '<p><small>'
+				. esc_html__( 'Visible to administrators only —', 'sppi-cfpb-dashboard' ) . ' '
+				. esc_html__( 'fetch failed:', 'sppi-cfpb-dashboard' ) . ' <code>'
+				. esc_html( $result['error'] ? $result['error'] : 'unknown' )
+				. '</code><br>' . esc_html__( 'URL tried:', 'sppi-cfpb-dashboard' ) . ' <code>'
+				. esc_html( sppi_cfpb_feed_url() ) . '</code><br>'
+				. '<a href="' . esc_url( admin_url( 'options-general.php?page=sppi-cfpb-dashboard' ) ) . '">'
+				. esc_html__( 'Check the dashboard settings', 'sppi-cfpb-dashboard' )
+				. '</a></small></p>';
+		}
+		return $out . '</div>';
 	}
 
 	wp_enqueue_style(
