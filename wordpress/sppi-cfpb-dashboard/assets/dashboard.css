@@ -1,0 +1,375 @@
+/**
+ * SPPI CFPB dashboard styles.
+ *
+ * INHERITANCE IS THE DEFAULT
+ * The dashboard sets no font-family, no text colour and no page background. It
+ * inherits all three from whatever theme is active, so it reads as part of the
+ * site rather than as an embedded widget.
+ *
+ * Everything structural is derived from `currentColor` through color-mix:
+ * rules, surfaces and muted text are simply the theme's own text colour at low
+ * opacity. That means a dark theme works with no dark-mode rules at all, and a
+ * theme with a warm or cool ink tints the whole component to match.
+ *
+ * WordPress theme.json variables are consulted where they exist
+ * (--wp--preset--color--*), with the derived value as the fallback, so block
+ * themes get their palette and classic themes still look right.
+ *
+ * The one thing NOT inherited is the data-series colours. A theme palette is
+ * chosen for branding, not for keeping four lines on a chart distinguishable,
+ * and an accent colour can easily be invisible against its own background.
+ * These are fixed mid-tones that clear 3:1 on both white and near-black. To
+ * override, redeclare --sppi-s1..s3 in your theme stylesheet.
+ */
+
+.sppi-cfpb {
+	/* Ink and ground: inherited, never set. */
+	--sppi-rule: color-mix(in srgb, currentColor 16%, transparent);
+	--sppi-rule-strong: color-mix(in srgb, currentColor 34%, transparent);
+	--sppi-surface: color-mix(in srgb, currentColor 4%, transparent);
+	--sppi-surface-2: color-mix(in srgb, currentColor 8%, transparent);
+	--sppi-muted: color-mix(in srgb, currentColor 65%, transparent);
+
+	/* Data colours: deliberate, overridable. */
+	--sppi-s1: #2f74b5;
+	--sppi-s2: #c4621f;
+	--sppi-s3: #2f8f74;
+	--sppi-flag: #c0392b;
+
+	--sppi-accent: var(--wp--preset--color--primary, var(--sppi-s1));
+
+	margin-block: 2em;
+	max-width: 100%;
+	line-height: inherit;
+}
+
+/* Older browsers without color-mix fall back to a neutral grey scale rather
+   than to nothing. */
+@supports not (color: color-mix(in srgb, red 50%, transparent)) {
+	.sppi-cfpb {
+		--sppi-rule: rgba(128, 128, 128, .32);
+		--sppi-rule-strong: rgba(128, 128, 128, .55);
+		--sppi-surface: rgba(128, 128, 128, .06);
+		--sppi-surface-2: rgba(128, 128, 128, .12);
+		--sppi-muted: rgba(128, 128, 128, .95);
+	}
+}
+
+.sppi-cfpb *,
+.sppi-cfpb *::before,
+.sppi-cfpb *::after { box-sizing: border-box; }
+
+/* ---- stat row ---------------------------------------------------------- */
+
+.sppi-cfpb .sppi-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11em, 1fr));
+	gap: 1px;
+	background: var(--sppi-rule);
+	border: 1px solid var(--sppi-rule);
+	margin-block: 0 2em;
+}
+
+.sppi-cfpb .sppi-stat {
+	background: var(--sppi-surface);
+	padding: 1em 1.1em;
+}
+
+.sppi-cfpb .sppi-stat b {
+	display: block;
+	font-size: 1.9em;
+	line-height: 1.1;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+	color: var(--sppi-accent);
+}
+
+.sppi-cfpb .sppi-stat span {
+	display: block;
+	margin-top: .45em;
+	font-size: .8em;
+	line-height: 1.4;
+	color: var(--sppi-muted);
+}
+
+/* ---- panels ------------------------------------------------------------ */
+
+.sppi-cfpb .sppi-panel { margin-block: 0 2.6em; }
+
+.sppi-cfpb .sppi-panel-title {
+	/* Inherits the theme's heading font and colour; only rhythm is set here. */
+	margin-block: 0 .25em;
+	font-size: 1.2em;
+	line-height: 1.25;
+}
+
+.sppi-cfpb .sppi-panel-note {
+	margin-block: 0 1em;
+	font-size: .85em;
+	line-height: 1.5;
+	color: var(--sppi-muted);
+	max-width: 62ch;
+}
+
+/* ---- charts ------------------------------------------------------------ */
+
+.sppi-cfpb figure.sppi-figure {
+	margin: 0;
+	position: relative;
+	background: var(--sppi-surface);
+	border: 1px solid var(--sppi-rule);
+	padding: .5em;
+}
+
+.sppi-cfpb .sppi-chart {
+	display: block;
+	width: 100%;
+	height: auto;
+	overflow: visible;
+	touch-action: pan-y;
+}
+
+.sppi-cfpb .sppi-chart:focus-visible {
+	outline: 2px solid var(--sppi-accent);
+	outline-offset: 2px;
+}
+
+.sppi-cfpb .sppi-grid { stroke: var(--sppi-rule); stroke-width: 1; }
+.sppi-cfpb .sppi-axis { stroke: var(--sppi-rule-strong); stroke-width: 1; }
+
+.sppi-cfpb .sppi-tick {
+	fill: var(--sppi-muted);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+.sppi-cfpb .sppi-line {
+	fill: none;
+	stroke-width: 2;
+	stroke-linejoin: round;
+	stroke-linecap: round;
+}
+
+.sppi-cfpb .sppi-s1 { stroke: var(--sppi-s1); }
+.sppi-cfpb .sppi-s2 { stroke: var(--sppi-s2); }
+.sppi-cfpb .sppi-s3 { stroke: var(--sppi-s3); }
+
+/* ---- hover layer -------------------------------------------------------- */
+
+.sppi-cfpb .sppi-crosshair {
+	stroke: var(--sppi-rule-strong);
+	stroke-width: 1;
+	stroke-dasharray: 3 3;
+	pointer-events: none;
+}
+
+.sppi-cfpb .sppi-dot {
+	stroke: var(--sppi-surface);
+	stroke-width: 2;
+	paint-order: stroke;
+	pointer-events: none;
+}
+
+.sppi-cfpb .sppi-dot.sppi-s1 { fill: var(--sppi-s1); }
+.sppi-cfpb .sppi-dot.sppi-s2 { fill: var(--sppi-s2); }
+.sppi-cfpb .sppi-dot.sppi-s3 { fill: var(--sppi-s3); }
+
+.sppi-cfpb .sppi-tip {
+	position: absolute;
+	z-index: 5;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity .12s ease;
+	background: Canvas;
+	color: CanvasText;
+	border: 1px solid var(--sppi-rule-strong);
+	border-radius: 3px;
+	padding: .5em .65em;
+	font-size: .78em;
+	line-height: 1.45;
+	white-space: nowrap;
+	box-shadow: 0 2px 10px rgba(0, 0, 0, .16);
+}
+
+.sppi-cfpb .sppi-tip[data-show="1"] { opacity: 1; }
+
+.sppi-cfpb .sppi-tip .sppi-tip-head {
+	font-weight: 700;
+	margin-bottom: .25em;
+}
+
+.sppi-cfpb .sppi-tip .sppi-tip-row {
+	display: flex;
+	align-items: center;
+	gap: .5em;
+}
+
+.sppi-cfpb .sppi-tip .sppi-tip-val {
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sppi-cfpb .sppi-tip { transition: none; }
+}
+
+/* ---- legend ------------------------------------------------------------ */
+
+.sppi-cfpb .sppi-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .4em 1.2em;
+	margin-top: .7em;
+	font-size: .82em;
+	color: var(--sppi-muted);
+}
+
+.sppi-cfpb .sppi-legend-item { display: inline-flex; align-items: center; gap: .45em; }
+
+.sppi-cfpb .sppi-swatch { width: 1em; height: 3px; border-radius: 2px; display: inline-block; }
+.sppi-cfpb .sppi-swatch.sppi-s1 { background: var(--sppi-s1); }
+.sppi-cfpb .sppi-swatch.sppi-s2 { background: var(--sppi-s2); }
+.sppi-cfpb .sppi-swatch.sppi-s3 { background: var(--sppi-s3); }
+
+/* ---- map --------------------------------------------------------------- */
+
+.sppi-cfpb .sppi-map { display: block; width: 100%; height: auto; }
+
+.sppi-cfpb .sppi-state {
+	stroke: var(--sppi-surface);
+	stroke-width: 1;
+	cursor: pointer;
+	transition: opacity .1s ease;
+}
+
+.sppi-cfpb .sppi-state:hover,
+.sppi-cfpb .sppi-state:focus { stroke: currentColor; stroke-width: 1.6; outline: none; }
+
+.sppi-cfpb .sppi-state.is-empty { fill: var(--sppi-surface-2); }
+
+.sppi-cfpb .sppi-state-label {
+	fill: currentColor;
+	font-size: 10px;
+	font-weight: 600;
+	pointer-events: none;
+	paint-order: stroke;
+	stroke: var(--sppi-surface);
+	stroke-width: 2.5px;
+}
+
+.sppi-cfpb .sppi-scale {
+	display: flex;
+	align-items: center;
+	gap: .5em;
+	margin-top: .6em;
+	font-size: .78em;
+	color: var(--sppi-muted);
+}
+
+.sppi-cfpb .sppi-scale-bar {
+	display: flex;
+	height: .7em;
+	flex: 0 1 14em;
+	border: 1px solid var(--sppi-rule);
+}
+
+.sppi-cfpb .sppi-scale-bar i { flex: 1; }
+
+.sppi-cfpb .sppi-mapmode {
+	display: inline-flex;
+	gap: 0;
+	margin-bottom: .8em;
+	border: 1px solid var(--sppi-rule-strong);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.sppi-cfpb .sppi-mapmode button {
+	font: inherit;
+	font-size: .82em;
+	padding: .35em .8em;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
+.sppi-cfpb .sppi-mapmode button + button { border-left: 1px solid var(--sppi-rule-strong); }
+.sppi-cfpb .sppi-mapmode button[aria-pressed="true"] { background: var(--sppi-surface-2); font-weight: 700; }
+
+/* ---- tables ------------------------------------------------------------ */
+
+.sppi-cfpb .sppi-tablewrap { overflow-x: auto; }
+
+.sppi-cfpb table.sppi-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: .88em;
+	margin: 0;
+}
+
+.sppi-cfpb table.sppi-table th,
+.sppi-cfpb table.sppi-table td {
+	text-align: left;
+	padding: .5em .7em;
+	border-bottom: 1px solid var(--sppi-rule);
+	background: none;
+}
+
+.sppi-cfpb table.sppi-table th {
+	font-size: .82em;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+	color: var(--sppi-muted);
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.sppi-cfpb table.sppi-table tbody tr:last-child td { border-bottom: none; }
+.sppi-cfpb table.sppi-table tbody tr:hover td { background: var(--sppi-surface); }
+
+.sppi-cfpb .sppi-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.sppi-cfpb .sppi-barwrap {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: .5em;
+	min-width: 7em;
+}
+
+.sppi-cfpb .sppi-bar {
+	position: absolute;
+	right: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	height: 1.15em;
+	background: color-mix(in srgb, var(--sppi-s1) 30%, transparent);
+	border-radius: 2px;
+	pointer-events: none;
+}
+
+.sppi-cfpb .sppi-barwrap span { position: relative; }
+
+/* ---- footer ------------------------------------------------------------ */
+
+.sppi-cfpb .sppi-foot {
+	margin-top: 1.6em;
+	padding-top: 1em;
+	border-top: 1px solid var(--sppi-rule);
+	font-size: .78em;
+	color: var(--sppi-muted);
+}
+
+.sppi-cfpb .sppi-foot p { margin-block: 0 .5em; max-width: 72ch; }
+
+.sppi-cfpb .sppi-cfpb-stale,
+.sppi-cfpb .sppi-cfpb-error { font-size: .85em; color: var(--sppi-flag); margin-top: .8em; }
+
+@media (max-width: 640px) {
+	.sppi-cfpb .sppi-stat b { font-size: 1.5em; }
+	.sppi-cfpb .sppi-tip { font-size: .72em; }
+}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CFPB Complaint Dashboard — Southwest Public Policy Institute</title>
+<meta name="description" content="A monthly analysis of the CFPB Consumer Complaint Database: complaint volume, templated filing, geography, and outcomes.">
+<link rel="stylesheet" href="assets/dashboard.css">
+<style>
+  /* Page chrome for the standalone version. The dashboard itself is styled
+     entirely by dashboard.css, which is shared with the WordPress plugin, so
+     nothing here affects how it renders inside the site. */
+  body {
+    margin: 0;
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    background: #f6f7f8;
+    color: #14171b;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 64px; }
+  header.page { padding: 48px 0 8px; border-bottom: 1px solid #dfe3e6; margin-bottom: 8px; }
+  header.page .eyebrow {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+    color: #767f86; margin: 0 0 8px;
+  }
+  header.page h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); line-height: 1.15; letter-spacing: -.015em; }
+  header.page p.dek { color: #4b5359; font-size: 18px; max-width: 60ch; }
+  footer.page { margin-top: 40px; padding-top: 16px; border-top: 1px solid #dfe3e6; font-size: 13px; color: #767f86; }
+  a { color: #1c5cab; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #14171a; color: #f2f4f5; }
+    header.page, footer.page { border-color: #2c3236; }
+    header.page p.dek { color: #b3bbc1; }
+    a { color: #6da7ec; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <p class="eyebrow">Southwest Public Policy Institute</p>
+    <h1>CFPB Complaint Dashboard</h1>
+    <p class="dek">A monthly census of the federal consumer complaint database:
+      how many complaints are filed, against whom, from where — and how many are
+      word-for-word copies of one another.</p>
+  </header>
+
+  <div class="sppi-cfpb" data-panels="headline,trend,volume,states,companies,relief">
+    <div class="sppi-cfpb-mount" role="region" aria-label="CFPB complaint database dashboard">
+      <p>Loading the latest figures…</p>
+    </div>
+  </div>
+
+  <footer class="page">
+    <p>Built from the CFPB Consumer Complaint Database public API. Updated
+      monthly. The underlying analysis, including method and limitations, is
+      published by the Southwest Public Policy Institute.</p>
+    <p><a href="data/dashboard.json">Download the data behind this page (JSON)</a></p>
+  </footer>
+</div>
+<script src="assets/dashboard.js"></script>
+</body>
+</html>

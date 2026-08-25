@@ -1,0 +1,89 @@
+name: Monthly CFPB dashboard refresh
+
+# Runs on the 3rd of each month. CFPB publishes complaints with a lag, so a
+# run early in the month is still reading a partial current month; the job
+# re-reads and replaces the trailing months every time to correct for that.
+on:
+  schedule:
+    - cron: '17 7 3 * *'
+  workflow_dispatch:
+    inputs:
+      months:
+        description: 'Whole months to re-read (default 3)'
+        required: false
+        default: '3'
+
+permissions:
+  # Only what this job needs: push the refreshed payload and update the state
+  # release. Publishing to Pages is pages.yml's job, with its own token scope.
+  contents: write
+
+concurrency:
+  group: cfpb-dashboard
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests truststore
+
+      # The aggregate index (~70 MB) is the job's memory between runs. It lives
+      # on a release rather than in git so the repository does not grow by that
+      # much every month.
+      - name: Restore index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/CFPB-Inspect/data"
+          if gh release download dashboard-state --pattern 'dashboard_index.sqlite.gz' --dir /tmp 2>/dev/null; then
+            gunzip -c /tmp/dashboard_index.sqlite.gz > "$HOME/CFPB-Inspect/data/dashboard_index.sqlite"
+            echo "restored $(du -h "$HOME/CFPB-Inspect/data/dashboard_index.sqlite" | cut -f1) index"
+          else
+            echo "::error::No dashboard-state release found. Seed it once with the bootstrap index."
+            exit 1
+          fi
+
+      - name: Pull recent complaints and update the index
+        env:
+          CFPB_INSPECT_THROTTLE: '2.0'
+          CFPB_INSPECT_CONTACT: 'info@southwestpolicy.com'
+        run: python dashboard/update.py --months ${{ github.event.inputs.months || 3 }}
+
+      - name: Emit the dashboard payload
+        run: python dashboard/emit.py --out dashboard/public/data/dashboard.json
+
+      - name: Sanity-check the payload
+        run: python dashboard/check_payload.py dashboard/public/data/dashboard.json
+
+      - name: Save index back to the state release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gzip -c "$HOME/CFPB-Inspect/data/dashboard_index.sqlite" > /tmp/dashboard_index.sqlite.gz
+          gh release upload dashboard-state /tmp/dashboard_index.sqlite.gz --clobber
+
+      # Committing the payload rather than deploying it directly means the
+      # published figures carry a month-by-month history that can be diffed --
+      # useful for a transparency project -- and leaves Pages with a single
+      # publisher (pages.yml), which cannot race with this job.
+      - name: Commit the refreshed payload
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard/public/data/dashboard.json
+          if git diff --staged --quiet; then
+            echo "No change in the payload; nothing to commit."
+          else
+            git commit -m "Dashboard data through $(python -c "import json;print(json.load(open('dashboard/public/data/dashboard.json'))['meta']['data_through'])")"
+            git push
+          fi
