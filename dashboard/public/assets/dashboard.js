@@ -87,13 +87,44 @@
 	/* ------------------------------------------------------------------ */
 
 	/**
-	 * Chart geometry, in viewBox units.
-	 *
-	 * Roughly 3:1. The dashboard sits in the theme's wide measure, so a chart is
-	 * typically rendered around 1200px across; at the previous 2.4:1 that came
-	 * out 500px tall and pushed the panel below it off the screen.
+	 * Live chart geometry, in viewBox units. Set by applyGeometry() before
+	 * anything is drawn; the values here are only the wide-column defaults.
 	 */
 	var W = 960, H = 340, PAD = { l: 70, r: 22, t: 18, b: 44 };
+
+	/**
+	 * Chart geometry by available width.
+	 *
+	 * One fixed viewBox cannot serve a 1200px column and a 340px phone. A 3:1
+	 * frame that reads well wide becomes 110px tall on a handset, and holding
+	 * the width instead only trades that for a scrollbar and a chart you cannot
+	 * see the end of. So the aspect and the padding are chosen from the width
+	 * the dashboard actually has, and the viewBox shrinks with it: a narrow
+	 * chart is squarer and reserves less room for its axis labels, because
+	 * `fitText` keeps those at a constant size on screen and they therefore
+	 * occupy proportionally more of a smaller viewBox.
+	 */
+	var BREAKS = [
+		{ max: 560, W: 440, H: 300, PAD: { l: 52, r: 14, t: 14, b: 40 } },
+		{ max: 900, W: 700, H: 320, PAD: { l: 60, r: 18, t: 16, b: 42 } },
+		{ max: Infinity, W: 960, H: 340, PAD: { l: 70, r: 22, t: 18, b: 44 } }
+	];
+
+	var geometry = -1;
+
+	function pickGeometry(width) {
+		for (var i = 0; i < BREAKS.length; i++) {
+			if (width <= BREAKS[i].max) return i;
+		}
+		return BREAKS.length - 1;
+	}
+
+	function applyGeometry(i) {
+		geometry = i;
+		W = BREAKS[i].W;
+		H = BREAKS[i].H;
+		PAD = BREAKS[i].PAD;
+	}
 
 	/** Rendered size we want chart text to end up at, in real CSS pixels. */
 	var TICK_PX = 12.5;
@@ -112,21 +143,34 @@
 	 * for a 33-unit font and the y-axis labels would run into the plot area.
 	 */
 	function fitText(svg) {
+		// The viewBox width this chart was built with. Reading the live W would
+		// be wrong after a re-render at a different geometry, when observers
+		// belonging to the previous set of charts can still fire.
+		var vbW = W;
+
 		function apply() {
+			// A width change replaces every chart. Anything still observing a
+			// discarded one has nothing useful to do.
+			if (!svg.isConnected) return;
 			var w = svg.getBoundingClientRect().width;
 			if (!w) return;
-			var units = TICK_PX * W / w;
-			svg.style.fontSize = Math.min(22, Math.max(9, units)).toFixed(2) + 'px';
+			svg.style.fontSize =
+				Math.min(22, Math.max(9, TICK_PX * vbW / w)).toFixed(2) + 'px';
 		}
 		apply();
+		// See watchWidth(): the observer alone is not sufficient, because it is
+		// delivered from the rendering lifecycle. The `isConnected` guard above
+		// is what keeps the window listener from doing work for charts that a
+		// re-render has already discarded.
 		if (typeof ResizeObserver === 'function') {
 			new ResizeObserver(apply).observe(svg);
-		} else {
-			window.addEventListener('resize', apply);
 		}
-		// The first measurement can happen before the theme's webfonts and
-		// layout have settled; one more pass after load costs nothing.
-		window.addEventListener('load', apply);
+		window.addEventListener('resize', apply);
+		// The first measurement can land before the theme's webfonts and layout
+		// have settled; one more pass after load costs nothing.
+		if (document.readyState !== 'complete') {
+			window.addEventListener('load', apply, { once: true });
+		}
 	}
 
 	function frame(title, desc) {
@@ -192,14 +236,42 @@
 		});
 	}
 
-	function xLabels(svg, labels, every) {
-		labels.forEach(function (lab, i) {
-			if (i % every !== 0 && i !== labels.length - 1) return;
-			svg.appendChild(svgEl('text', {
-				x: xScale(i, labels.length), y: H - PAD.b, dy: '1.5em',
-				class: 'sppi-tick', 'text-anchor': 'middle'
-			}, lab));
+	/**
+	 * Year labels along the x axis.
+	 *
+	 * The previous version stamped a label every N indices and then forced one
+	 * onto the final index as well. A series almost never ends on a multiple of
+	 * N, so the last gap came out a different width from every other one, and
+	 * when the closing months shared a year with the preceding label the axis
+	 * printed the same year twice — "2026 2026" on the trend chart.
+	 *
+	 * Labelling calendar-year boundaries instead means each year appears once,
+	 * at the x position of its own January, so the gaps are true twelve-month
+	 * intervals. The sequence is anchored on the most recent year and walked
+	 * backwards, because the newest year is the one a reader looks for first;
+	 * walking forwards from the start can leave it unlabelled.
+	 */
+	function xYearLabels(svg, months) {
+		var firstIdx = {}, years = [];
+		months.forEach(function (m, i) {
+			var y = String(m).slice(0, 4);
+			if (!(y in firstIdx)) { firstIdx[y] = i; years.push(y); }
 		});
+		if (!years.length) return;
+
+		// Roughly 70 viewBox units per label keeps four digits clear of their
+		// neighbours. W tracks the rendered width, so this holds at every
+		// breakpoint without measuring the DOM.
+		var room = Math.max(2, Math.floor((W - PAD.l - PAD.r) / 70));
+		var step = Math.ceil(years.length / room);
+
+		for (var k = years.length - 1; k >= 0; k -= step) {
+			var y = years[k];
+			svg.appendChild(svgEl('text', {
+				x: xScale(firstIdx[y], months.length), y: H - PAD.b, dy: '1.5em',
+				class: 'sppi-tick', 'text-anchor': 'middle'
+			}, y));
+		}
 	}
 
 	function polyline(svg, values, lo, hi, cls) {
@@ -240,7 +312,13 @@
 		var tip = el('div', { class: 'sppi-tip', role: 'status', 'aria-live': 'polite' });
 		fig.appendChild(tip);
 
-		var cross = svgEl('line', { class: 'sppi-crosshair', y1: PAD.t, y2: H - PAD.b, x1: -99, x2: -99 });
+		// Hidden outright rather than parked off to the left. The SVG needs
+		// `overflow: visible` so tooltips and edge labels are not clipped, which
+		// means anything parked outside the viewBox is still painted: a stray
+		// dashed line stood in the margin whenever the pointer was away, and
+		// counted as overflowing content for scrollbar purposes.
+		var cross = svgEl('line', { class: 'sppi-crosshair', y1: PAD.t, y2: H - PAD.b, x1: 0, x2: 0 });
+		cross.style.display = 'none';
 		svg.appendChild(cross);
 
 		var dots = cfg.series.map(function (s) {
@@ -255,8 +333,7 @@
 		function hide() {
 			current = -1;
 			tip.removeAttribute('data-show');
-			cross.setAttribute('x1', -99);
-			cross.setAttribute('x2', -99);
+			cross.style.display = 'none';
 			dots.forEach(function (d) { d.style.display = 'none'; });
 		}
 
@@ -264,6 +341,7 @@
 			if (i < 0 || i >= n) return;
 			current = i;
 			var x = xScale(i, n);
+			cross.style.display = '';
 			cross.setAttribute('x1', x);
 			cross.setAttribute('x2', x);
 
@@ -392,7 +470,7 @@
 			return { v: v, label: (Math.round(v * 10) / 10) + '%' };
 		});
 		gridY(svg, ticks, 0, hi);
-		xLabels(svg, labels.map(function (m) { return m.slice(0, 4); }), 12);
+		xYearLabels(svg, labels);
 		polyline(svg, vals, 0, hi, 'sppi-s1');
 
 		var fig = figureWrap(svg);
@@ -434,7 +512,7 @@
 			});
 		}
 		gridY(svg, ticks, lo, hi);
-		xLabels(svg, months.map(function (m) { return m.slice(0, 4); }), 24);
+		xYearLabels(svg, months);
 		series.forEach(function (s, i) {
 			polyline(svg, s.counts.map(function (v) { return v > 0 ? Math.log10(v) : null; }),
 				lo, hi, 'sppi-s' + (i + 1));
@@ -683,15 +761,37 @@
 
 	function panelCompanies(d) {
 		if (!d.companies || !d.companies.length) return null;
+		var top = d.companies.slice(0, 12);
+
+		// The templated column only exists in payloads emitted after it was
+		// added, and only for firms the index keeps text detail on. Deciding per
+		// payload rather than per row keeps a column of dashes off the table on
+		// an older feed.
+		var hasTemplated = top.some(function (r) {
+			return r.templated_pct !== null && r.templated_pct !== undefined;
+		});
+
 		var w = section('Most-complained-about companies',
 			'By complaints received over the last ' + d.meta.window_months +
-			' complete months. Names are grouped across corporate variants.');
-		var top = d.companies.slice(0, 12);
-		w.appendChild(dataTable(top, [
+			' complete months. Names are grouped across corporate variants.' +
+			(hasTemplated
+				? ' The templated share is of that company’s scored narratives, ' +
+				  'not of all its complaints — most complaints carry no published ' +
+				  'narrative at all, as the middle column shows.'
+				: ''));
+
+		var cols = [
 			{ label: 'Company', get: function (r) { return r.company; } },
 			{ label: 'Complaints', num: true, get: function (r) { return fmt(r.complaints); } },
 			{ label: 'With narrative', num: true, get: function (r) { return fmt(r.narratives); } }
-		]));
+		];
+		if (hasTemplated) {
+			cols.push({
+				label: 'Templated', num: true,
+				get: function (r) { return pct(r.templated_pct); }
+			});
+		}
+		w.appendChild(dataTable(top, cols));
 		return w;
 	}
 
@@ -769,10 +869,64 @@
 		var lvl = String(cfg.heading || wrapper.getAttribute('data-heading') || '').toLowerCase();
 		if (/^h[1-6]$/.test(lvl)) HEADING = lvl;
 
-		if (cfg.data) {
+		function columnWidth() {
+			return Math.round(wrapper.getBoundingClientRect().width) || window.innerWidth;
+		}
+
+		/**
+		 * Draw every mount, choosing the chart geometry for the current width.
+		 *
+		 * The geometry has to be settled before the first chart is built, because
+		 * the viewBox is baked into the SVG at construction. That is also why a
+		 * width change is handled by re-rendering rather than by restyling: there
+		 * is no way to re-proportion an existing chart without redrawing it.
+		 */
+		function draw(data, panels) {
+			applyGeometry(pickGeometry(columnWidth()));
 			Array.prototype.forEach.call(mounts, function (m) {
-				render(m, cfg.data, cfg.panels, mapUrl);
+				render(m, data, panels, mapUrl);
 			});
+		}
+
+		/**
+		 * Redraw when the column crosses into a different geometry.
+		 *
+		 * This watches the container rather than the window, because the first
+		 * measurement is not always trustworthy: a dashboard inside a tab, an
+		 * accordion, or a pane that is sized after scripts run can report zero
+		 * or a placeholder width at boot, and a window `resize` event never
+		 * arrives to correct it. A ResizeObserver fires as soon as the element
+		 * has a real size, which repairs the initial guess and handles rotation
+		 * and window dragging with the same code path.
+		 *
+		 * Gated on the bucket actually changing, so ordinary resizing — and the
+		 * address-bar height changes a phone emits while scrolling — cost
+		 * nothing.
+		 */
+		function watchWidth(data, panels) {
+			var timer;
+			function check() {
+				clearTimeout(timer);
+				timer = setTimeout(function () {
+					if (pickGeometry(columnWidth()) !== geometry) draw(data, panels);
+				}, 150);
+			}
+			// Both signals, not one or the other. A ResizeObserver catches the
+			// container changing without the window doing so — a sidebar
+			// collapsing, a tab becoming visible — but it is delivered from the
+			// rendering lifecycle, so a document that is not being painted may
+			// never receive one. The window event comes off the ordinary event
+			// loop and covers that. `check` is debounced and compares buckets
+			// before acting, so hearing twice costs nothing.
+			if (typeof ResizeObserver === 'function') {
+				new ResizeObserver(check).observe(wrapper);
+			}
+			window.addEventListener('resize', check);
+		}
+
+		if (cfg.data) {
+			draw(cfg.data, cfg.panels);
+			watchWidth(cfg.data, cfg.panels);
 			return;
 		}
 		var feed = wrapper.getAttribute('data-feed') || DEFAULT_FEED;
@@ -782,10 +936,9 @@
 				return r.json();
 			})
 			.then(function (data) {
-				Array.prototype.forEach.call(mounts, function (m) {
-					var p = (m.parentNode.getAttribute('data-panels') || '').split(',').filter(Boolean);
-					render(m, data, p, mapUrl);
-				});
+				var p = (wrapper.getAttribute('data-panels') || '').split(',').filter(Boolean);
+				draw(data, p);
+				watchWidth(data, p);
 			})
 			.catch(function (e) {
 				Array.prototype.forEach.call(mounts, function (m) {

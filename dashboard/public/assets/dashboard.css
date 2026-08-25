@@ -374,12 +374,16 @@
 .sppi-cfpb .sppi-cfpb-stale,
 .sppi-cfpb .sppi-cfpb-error { color: var(--sppi-flag); margin-top: .8em; }
 
+/* Charts always fit the column they are given. The renderer picks a squarer
+   viewBox at narrow widths (see BREAKS in dashboard.js) so a phone gets a
+   readable chart rather than a letterbox, which means nothing here needs to
+   hold a minimum width or scroll.
+
+   Do not give the figure an overflow value to "contain" a chart: `overflow-x`
+   on its own forces the computed `overflow-y` to `auto` as well, and since the
+   SVG needs `overflow: visible` for its tooltip, that produced a scrollbar on
+   both axes. */
+
 @media (max-width: 640px) {
 	.sppi-cfpb .sppi-stats { grid-template-columns: 1fr; }
-
-	/* A 127-month series squeezed into a phone-width column is 112px tall and
-	   unreadable. Hold the charts to a workable width and let the figure scroll
-	   sideways instead, the same way the tables already do. */
-	.sppi-cfpb figure.sppi-figure { overflow-x: auto; }
-	.sppi-cfpb .sppi-chart { min-width: 52rem; }
 }

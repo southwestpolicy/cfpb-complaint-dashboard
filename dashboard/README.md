@@ -149,6 +149,40 @@ To check what would be packaged without writing anything:
 python dashboard/build_plugin_release.py --check
 ```
 
+## The templated share in the companies panel
+
+That column needs `text_company_month` — per-company, per-hash, per-month
+narrative counts. It cannot be precomputed as a boolean at ingest time, because
+whether a text counts as a template depends on its running total across the whole
+corpus and it can cross the threshold years after first appearing.
+
+The table was added after the index was first built, and the monthly job only
+re-reads its trailing refresh window, so the months the panel reports on would
+otherwise stay empty for a year. Two ways to populate it:
+
+```bash
+# Narrow and additive: writes only the new table, from the local store.
+python dashboard/backfill_company_text.py --months 18
+
+# Correct and complete: re-keys and rebuilds every table. Takes about an hour.
+python dashboard/build_index.py --bootstrap
+```
+
+**Prefer the bootstrap if the company aliases in `cfpb_inspect/companies.py`
+have changed since the index was built.** Company keys are only consistent
+across tables if every table was written by the same version of that module. An
+index whose `company_month` predates an alias holds the old key — `LEXISNEXIS`
+where the current grouping yields `LexisNexis` — and the two never join, so
+those firms show a dash in the new column. The same drift is why a stale index
+displays names like "Resurgent Capital Services L P" instead of the grouped
+form. Only a full rebuild re-keys everything at once; the emitter deliberately
+does not match loosely, because a near-miss would attribute one firm's
+narratives to another.
+
+A company also shows a dash when it has fewer than 200 scored narratives in the
+window, the same floor the state panel uses, or when it falls outside the
+`COMPANY_DETAIL_TOP` firms the index keeps text detail for.
+
 ## Running
 
 The workflow runs on the 3rd of each month at 07:17 UTC and can be triggered

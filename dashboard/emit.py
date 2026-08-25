@@ -179,10 +179,51 @@ def build(conn) -> dict:
         if m in win_set:
             comp[name] += c
             comp_narr[name] += nn
-    companies = [{"company": _display_name(n), "complaints": c,
-                  "narratives": comp_narr.get(n, 0)}
-                 for n, c in sorted(comp.items(), key=lambda kv: -kv[1])[:20]
-                 if n]
+    # Templated share per company, over the same window. Two reasons a company
+    # legitimately has no rows here, and both produce None rather than a
+    # misleading zero:
+    #
+    #   * text_company_month is kept only for the busiest firms
+    #     (COMPANY_DETAIL_TOP in build_index.py);
+    #   * the join is on the grouped company key, and those keys are only
+    #     consistent across tables if every table was written by the same
+    #     version of cfpb_inspect.companies. An index whose company_month
+    #     predates an alias being added holds the old key -- 'LEXISNEXIS' where
+    #     the current grouping yields 'LexisNexis' -- and the two do not meet.
+    #     A full `build_index.py --bootstrap` re-keys every table at once and is
+    #     the only thing that fixes it; matching loosely here would risk
+    #     attributing one firm's narratives to another.
+    #
+    # The denominator is the ALL_HASH sentinel row -- scored narratives for that
+    # company and month -- not the `narratives` column of company_month. The two
+    # differ: company_month counts every complaint that arrived with a narrative,
+    # while only narratives long enough to score are hashed. Dividing templated
+    # counts by the larger figure would understate every share.
+    co_tmpl: dict[str, int] = defaultdict(int)
+    co_scored: dict[str, int] = defaultdict(int)
+    for h, name, m, n in conn.execute(
+            "SELECT hash, company, month, n FROM text_company_month"):
+        if m not in win_set:
+            continue
+        if h == ALL_HASH:
+            co_scored[name] += n
+        elif h in templates:
+            co_tmpl[name] += n
+
+    companies = []
+    for n, c in sorted(comp.items(), key=lambda kv: -kv[1])[:20]:
+        if not n:
+            continue
+        scored = co_scored.get(n, 0)
+        companies.append({
+            "company": _display_name(n),
+            "complaints": c,
+            "narratives": comp_narr.get(n, 0),
+            # Same floor as the state panel: below this the percentage swings on
+            # a handful of filings and reads as precision that is not there.
+            "templated_pct": (round(100 * co_tmpl.get(n, 0) / scored, 1)
+                              if scored >= 200 else None),
+        })
 
     # ---- relief -----------------------------------------------------------
     # Two years of complete months. A single calendar year lands on 2026, where

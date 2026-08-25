@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.0
+
+- The companies table gains a templated-share column. It is the share of that
+  company's *scored narratives*, not of all its complaints — the two differ by
+  more than an order of magnitude, because most complaints carry no published
+  narrative at all. The column appears only when the payload supplies it, so an
+  older feed is unaffected. Needs `text_company_month`, added to the index in
+  this release; see `dashboard/README.md`.
+- Year labels on the time-series charts are placed on calendar-year boundaries
+  instead of every Nth data point. The old scheme also forced a label onto the
+  final point, so the last gap was a different width from all the others and the
+  trend chart printed "2026" twice.
+- Fixed the dashed line that hung in the margin whenever the pointer was away
+  from a chart. The crosshair was parked off to the left rather than hidden, and
+  the SVG needs `overflow: visible` for its tooltip, so it stayed painted.
+- Charts now fit the width they are given instead of holding a minimum and
+  scrolling. The renderer picks a squarer viewBox with tighter padding at narrow
+  widths, so a phone gets a 215px-tall chart with 12.5px labels where before it
+  got a 112px one, 3.4px labels, and a scrollbar on both axes. Crossing a
+  breakpoint redraws, so rotating a phone re-proportions the charts.
+
+  The scrollbar on the *vertical* axis came from the same rule as the horizontal
+  one: `overflow-x` on its own forces the computed `overflow-y` to `auto`, and
+  the off-canvas crosshair above was the overflowing content.
+
 ## 1.1.1
 
 - Removed the two-letter abbreviations painted on the map. At the width the map

@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       SPPI CFPB Complaint Dashboard
  * Description:       Renders the Southwest Public Policy Institute's CFPB complaint-database dashboard from a published JSON feed. Use the [sppi_cfpb_dashboard] shortcode.
- * Version:           1.1.1
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Tested up to:      6.8
  * Requires PHP:      7.4
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SPPI_CFPB_VERSION', '1.1.1' );
+define( 'SPPI_CFPB_VERSION', '1.2.0' );
 define( 'SPPI_CFPB_PATH', plugin_dir_path( __FILE__ ) );
 define( 'SPPI_CFPB_URL', plugin_dir_url( __FILE__ ) );
 

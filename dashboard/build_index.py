@@ -47,8 +47,14 @@ RELIEF_FROM = "2022-01"
 ALL_HASH = b"ALLNARRS"   # 8 printable bytes; collision with a real sha1 prefix is negligible
 RELIEF_SET = ("Closed with monetary relief", "Closed with non-monetary relief")
 
-TABLES = ("text_month", "text_state_month", "monthly", "company_month",
-          "state_month", "relief_month")
+# Per-company text detail is kept only for the busiest firms. The panel that
+# uses it shows twelve; keeping forty leaves room for the ranking to move
+# without carrying a row for every one of the thousands of named companies,
+# which is what would make this table dominate the index.
+COMPANY_DETAIL_TOP = 40
+
+TABLES = ("text_month", "text_state_month", "text_company_month", "monthly",
+          "company_month", "state_month", "relief_month")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS text_month (
@@ -57,6 +63,9 @@ CREATE TABLE IF NOT EXISTS text_month (
 CREATE TABLE IF NOT EXISTS text_state_month (
     hash BLOB NOT NULL, state TEXT NOT NULL, month TEXT NOT NULL,
     n INTEGER NOT NULL, PRIMARY KEY (hash, state, month)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS text_company_month (
+    hash BLOB NOT NULL, company TEXT NOT NULL, month TEXT NOT NULL,
+    n INTEGER NOT NULL, PRIMARY KEY (hash, company, month)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS monthly (
     segment TEXT NOT NULL, month TEXT NOT NULL,
     complaints INTEGER NOT NULL, narratives INTEGER NOT NULL,
@@ -113,7 +122,7 @@ def ingest(conn: sqlite3.Connection, rows) -> int:
     rows: (segment, month, state, company, company_response, has_narrative,
            narrative)
     """
-    tm, tsm, rel = Counter(), Counter(), Counter()
+    tm, tsm, tcm, rel = Counter(), Counter(), Counter(), Counter()
     mon, comp, sm = Counter(), Counter(), Counter()
     mon_n, comp_n, sm_n = Counter(), Counter(), Counter()
     n = 0
@@ -140,6 +149,15 @@ def ingest(conn: sqlite3.Connection, rows) -> int:
                 # without it the only surviving rows are repeated texts and the
                 # templated share computes against itself.
                 tsm[(ALL_HASH, st, month)] += 1
+            if grp:
+                # Same shape for companies, and for the same reason: whether a
+                # text counts as a template depends on its running total across
+                # the whole corpus, which can cross the threshold years after
+                # the fact. Only per-hash, per-month counts can be re-totalled
+                # correctly at emit time; a precomputed "templated" flag would
+                # silently freeze the answer as of ingest.
+                tcm[(h, grp, month)] += 1
+                tcm[(ALL_HASH, grp, month)] += 1
             # Relief is recorded only for complaints that HAVE a scored
             # narrative. Including narrative-less complaints in the "organic"
             # bucket compares templated filings against a different population
@@ -166,6 +184,7 @@ def ingest(conn: sqlite3.Connection, rows) -> int:
 
     bump("text_month", ["hash", "month"], tm)
     bump("text_state_month", ["hash", "state", "month"], tsm)
+    bump("text_company_month", ["hash", "company", "month"], tcm)
     bump2("monthly", ["segment", "month"], mon, mon_n)
     bump2("company_month", ["company", "segment", "month"], comp, comp_n)
     bump2("state_month", ["state", "month"], sm, sm_n)
@@ -189,6 +208,23 @@ def prune_detail(conn: sqlite3.Connection) -> None:
              "AND hash IN (SELECT hash FROM rare)", (ALL_HASH,))
     after = conn.execute("SELECT COUNT(*) FROM text_state_month").fetchone()[0]
 
+    cb = conn.execute("SELECT COUNT(*) FROM text_company_month").fetchone()[0]
+    conn.execute("DELETE FROM text_company_month WHERE hash <> ? "
+                 "AND hash IN (SELECT hash FROM rare)", (ALL_HASH,))
+    # Then drop every company outside the top of the ranking. Unlike states,
+    # which are a closed set of 51, companies run to thousands, and a per-hash
+    # row for each would cost more than the whole rest of the index.
+    conn.execute("DROP TABLE IF EXISTS temp.keep_co")
+    conn.execute(
+        "CREATE TEMP TABLE keep_co AS SELECT company FROM company_month "
+        "GROUP BY company ORDER BY SUM(complaints) DESC LIMIT ?",
+        (COMPANY_DETAIL_TOP,))
+    conn.execute("CREATE INDEX temp.ix_keep_co ON keep_co(company)")
+    conn.execute("DELETE FROM text_company_month "
+                 "WHERE company NOT IN (SELECT company FROM keep_co)")
+    conn.execute("DROP TABLE temp.keep_co")
+    ca = conn.execute("SELECT COUNT(*) FROM text_company_month").fetchone()[0]
+
     rb = conn.execute("SELECT COUNT(*) FROM relief_month").fetchone()[0]
     # Rare texts fold into the anonymous bucket rather than being deleted:
     # they are organic by definition and still needed as the denominator.
@@ -203,8 +239,9 @@ def prune_detail(conn: sqlite3.Connection) -> None:
     ra = conn.execute("SELECT COUNT(*) FROM relief_month").fetchone()[0]
     conn.execute("DROP TABLE temp.rare")
     conn.commit()
-    print(f"  text_state_month  {before:,} -> {after:,} rows")
-    print(f"  relief_month      {rb:,} -> {ra:,} rows")
+    print(f"  text_state_month   {before:,} -> {after:,} rows")
+    print(f"  text_company_month {cb:,} -> {ca:,} rows")
+    print(f"  relief_month       {rb:,} -> {ra:,} rows")
 
 
 def bootstrap() -> None:
